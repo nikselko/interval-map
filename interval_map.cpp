@@ -10,80 +10,135 @@
 ******************************************************************************/
 
 #include <iostream>
-#include <cassert>
 #include <map>
 
-using std::cout;
-using std::endl;
+using namespace std;
 
 template<typename K, typename V>
-
-class interval_map { 
+class interval_map {
 	friend void IntervalMapTest();
-	friend void print();
 	V m_valBegin;
 	std::map<K, V> m_map;
 public:
-	
-	interval_map(V const& val) : m_valBegin(val) {}
+	interval_map(V const& val)
+		: m_valBegin(val)
+	{}
 
-	void assign(K const& keyBegin, K const& keyEnd, V const& val)
-	{
-		if (not (keyBegin < keyEnd)) return;
+	void assign(K const& keyBegin, K const& keyEnd, V const& val) { 
+		if (!(keyBegin < keyEnd)) return; 
 
-		V defaultVal = m_valBegin;
-		typename std::map<K, V>::iterator linkMapEnd = m_map.upper_bound(keyEnd);
-		auto pair_Begin = m_map.emplace(keyBegin, val);
-		auto prev_pair_Begin = pair_Begin.first;
+		if (m_map.empty()) {
+			if (val == m_valBegin) return;
+			m_map.insert({ keyBegin, val });
+			m_map.insert({ keyEnd, m_valBegin });
+			return;
+		}
 
-		if (!pair_Begin.second)
-			prev_pair_Begin->second = val;
+		K upper_interval = m_map.rbegin()->first;
+		K lower_interval = m_map.begin()->first;
+		auto map_iter = m_map.upper_bound(keyEnd);
 
-		auto pair_End = m_map.emplace_hint(linkMapEnd, keyEnd, defaultVal);
+		if (map_iter == m_map.end()) {
+			if (upper_interval < keyEnd) {
+				m_map.insert(m_map.end(), std::pair<K, V>(keyEnd, m_valBegin));
+				map_iter--; map_iter--;
+			}
+			else {
+				map_iter = m_map.lower_bound(keyEnd);
+				auto next_val = map_iter->second;
+				if (!(next_val == val)) {
+					map_iter = m_map.insert_or_assign(map_iter, keyEnd, prev(map_iter)->second);
+					map_iter--;
+				}
+			}
 
-		assert((std::next(pair_End)) == linkMapEnd);
-		bool is_Begin = false;
+			if (lower_interval > keyBegin) {
+				if (!(val == m_valBegin)) m_map.insert_or_assign(m_map.begin(), keyBegin, val);
+			}
+			else {
+				map_iter--;
+				auto prev_val = map_iter->second;
+				if (!(val == prev_val)) m_map.insert_or_assign(map_iter, keyBegin, val);
+			}
 
-		if (m_map.begin() != prev_pair_Begin)
-			is_Begin = std::next(prev_pair_Begin, -1)->second == val;
-		else
-			is_Begin = (val == m_valBegin);
-
-		if (val != defaultVal)
-			bool is_End = false;
-
-		if (m_map.end() != prev_pair_Begin)
-			std::advance(prev_pair_Begin, 1);
-		else if (m_map.end() != pair_End)
-			std::advance(pair_End, 1);
-
-		m_map.erase(prev_pair_Begin, pair_End);
+			while (keyBegin < map_iter->first) {
+				if (map_iter == m_map.begin()) {
+					m_map.erase(map_iter);
+					break;
+				}
+				m_map.erase(map_iter--);
+			}
+		}
 	}
 
-	V const& operator[](K const& key) const
-	{
+	// look-up of the value associated with key
+	V const& operator[](K const& key) const {
 		auto it = m_map.upper_bound(key);
-
-		if (it == m_map.begin())
+		if (it == m_map.begin()) {
 			return m_valBegin;
-		else
+		}
+		else {
 			return (--it)->second;
+		}
 	}
 
-	void print() 
-	{
-		cout << endl;
+	void print() {
 
-		for (auto it = m_map.begin(); it != m_map.end(); ++it)
-			cout << it->first << ", " << it->second << '\n';
+		std::cout << '\n' << m_valBegin << '\n';
+		for (auto it = m_map.begin(); it != m_map.end(); ++it) {
+			std::cout << it->first << ", " << it->second << '\n';
+		}
 	}
 };
 
 int main()
 {
-	interval_map <int, char> test_map{ 'A' };
+	//first test case
+	interval_map<int, char> fooh{ 'z' };
+	fooh.assign(2, 5, 'a');
+	fooh.print();
+	std::cout << fooh[6] << std::endl << std::endl;
 
-	test_map.print();
-	test_map.assign(3, 6, 'B');
-	test_map.print();
+	//second test case
+	// expected : z  b  z
+	fooh = interval_map<int, char>{ 'z' };
+	fooh.assign(1, 4, 'b');
+	cout << fooh[0] << " " << fooh[1] << " " << fooh[5] << endl;
+
+	//third test case
+	// expected: A
+	fooh = interval_map<int, char>{ 'z' };
+	fooh.assign(1, 6, 'A');
+	fooh.assign(2, 4, 'B');
+	cout << fooh[5] << endl;
+	fooh.print();
+
+
+	//forth test case
+	fooh = interval_map<int, char>{ 'z' };
+	//expected [0,'a'],[1,'z']
+	fooh.assign(0, 1, 'a');
+	fooh.print();
+
+
+	//fifth test case
+	// expected [0,'f']
+	fooh = interval_map<int, char>{ 'z' };
+	fooh.assign(1, 2, 'c');
+	fooh.assign(2, 3, 'd');
+	fooh.assign(3, 4, 'e');
+	fooh.assign(4, 15, 'g');
+	fooh.assign(0, 10, 'f');
+	fooh.print();
+	cout << endl;
+
+
+	//sixth test case
+	// expected: 0,'d'  2,'c'  
+	fooh = interval_map<int, char>{ 'z' };
+	fooh.assign(1, 4, 'c');
+	fooh.assign(0, 2, 'd');
+	fooh.print();
+	cout << endl;
+	
 }
